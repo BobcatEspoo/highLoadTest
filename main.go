@@ -7,11 +7,12 @@ import (
 
 func main() {
 	// Путь до chrome.exe (проверьте актуальность пути на вашем ПК)
-	chromePath := `C:\Program Files\Google\Chrome\Application\chrome.exe`
+	// chromePath := `C:\Program Files\Google\Chrome\Application\chrome.exe`
+	chromeLinuxPath := "/usr/local/bin/google-chrome"
 	url := "https://x.la/cgs/empire-of-the-ants/play"
 
 	// Команда запуска
-	cmd := exec.Command(chromePath, url)
+	cmd := exec.Command(chromeLinuxPath, url)
 
 	// Запускаем процесс
 	err := cmd.Start()

@@ -7,7 +7,7 @@ if ! command -v go &> /dev/null
 then
     echo "Go не установлен. Начинаем установку..."
 
-    rm -rf /usr/local/go && tar -C /usr/local -xzf go1.25.1.linux-amd64.tar.gz
+    rm -rf /usr/local/go && tar -C /usr/local -xzf go1.24.4.linux-amd64.tar.gz
     export PATH=$PATH:/usr/local/go/bin
     go version
     echo "Go установлен."
