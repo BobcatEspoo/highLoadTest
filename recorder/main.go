@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -50,9 +51,11 @@ func recordScreen(outputPath string, duration time.Duration) error {
 }
 
 func main() {
+	name := flag.String("name", "0", "to add name to file")
+	flag.Parse()
 	fmt.Println("🚀 Start recording on 5 minutes...")
 	timestamp := time.Now().Format("150405")
-	outputFile := filepath.Join(fmt.Sprintf("recording_%s.mp4", timestamp))
+	outputFile := filepath.Join(fmt.Sprintf("recording_%s_%s.mp4", timestamp, *name))
 
 	duration := 5 * time.Minute
 

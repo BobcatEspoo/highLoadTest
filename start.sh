@@ -5,8 +5,8 @@ cd test_run
 chmod +x recorder
 chmod +x my_linux_app
 
-./my_linux_app
+./start_game
 
-./recorder
+./recorder -name=$1
 
 bash saveRecord.sh
