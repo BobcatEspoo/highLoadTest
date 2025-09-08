@@ -6,17 +6,21 @@ import (
 )
 
 func main() {
-	// Путь до chrome.exe (проверьте актуальность пути на вашем ПК)
 	// chromePath := `C:\Program Files\Google\Chrome\Application\chrome.exe`
 	chromeLinuxPath := "/usr/local/bin/google-chrome"
 	url := "https://x.la/cgs/empire-of-the-ants/play"
+	args := []string{
+		"--password-store=basic",
+		"--no-first-run",
+		"--disable-features=AccountConsistency",
+		"--disable-signin-promo",
+		url,
+	}
 
-	// Команда запуска
-	cmd := exec.Command(chromeLinuxPath, url)
+	cmd := exec.Command(chromeLinuxPath, args...)
 
-	// Запускаем процесс
 	err := cmd.Start()
 	if err != nil {
-		log.Fatalf("Ошибка запуска Chrome: %v", err)
+		log.Fatalf("Error while start chrome: %v", err)
 	}
 }
