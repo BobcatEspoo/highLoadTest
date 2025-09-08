@@ -29,14 +29,14 @@ func recordScreen(outputPath string, duration time.Duration) error {
 
 	cmd := exec.Command("ffmpeg",
 		"-f", "x11grab", // Формат захвата X11
-		"-video_size", "1280x720", // Разрешение
+		"-video_size", "1920x1080", // Разрешение
 		"-framerate", "24", // Частота кадров
 		"-i", display, // Дисплей для захвата
 		"-t", fmt.Sprintf("%.0f", duration.Seconds()), // Длительность
 		"-pix_fmt", "yuv420p", // Формат пикселей
 		"-c:v", "libx264", // Кодек видео
 		"-preset", "fast", // Пресет кодирования
-		"-crf", "25", // Качество (0-51, меньше - лучше)
+		"-crf", "35", // Качество (0-51, меньше - лучше)
 		outputPath, // Выходной файл
 	)
 
