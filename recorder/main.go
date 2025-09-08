@@ -49,29 +49,14 @@ func recordScreen(outputPath string, duration time.Duration) error {
 	return cmd.Run()
 }
 
-func createOutputDir() (string, error) {
-	dirName := fmt.Sprintf("recordings_%s", time.Now().Format("20060102_150405"))
-	err := os.MkdirAll(dirName, 0755)
-	if err != nil {
-		return "", fmt.Errorf("error with directory: %v", err)
-	}
-	return dirName, nil
-}
-
 func main() {
 	fmt.Println("🚀 Start recording on 5 minutes...")
-
-	outputDir, err := createOutputDir()
-	if err != nil {
-		log.Fatalf("❌ Ошибка: %v", err)
-	}
-
 	timestamp := time.Now().Format("150405")
-	outputFile := filepath.Join(outputDir, fmt.Sprintf("recording_%s.mp4", timestamp))
+	outputFile := filepath.Join(fmt.Sprintf("recording_%s.mp4", timestamp))
 
 	duration := 5 * time.Minute
 
-	err = recordScreen(outputFile, duration)
+	err := recordScreen(outputFile, duration)
 	if err != nil {
 		log.Fatalf("❌ Error record: %v", err)
 	}
