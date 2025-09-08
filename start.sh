@@ -5,9 +5,9 @@ cd test_run
 chmod +x recorder
 chmod +x my_linux_app
 
-./recorder
-
 ./my_linux_app
+
+./recorder
 
 sleep 5m
 
