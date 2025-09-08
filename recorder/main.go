@@ -43,8 +43,8 @@ func recordScreen(outputPath string, duration time.Duration) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	fmt.Printf("Начинаем запись экрана на %v...\n", duration)
-	fmt.Printf("Команда: %s\n", cmd.String())
+	fmt.Printf("Start recording %v...\n", duration)
+	fmt.Printf("Comand: %s\n", cmd.String())
 
 	return cmd.Run()
 }
@@ -53,14 +53,13 @@ func createOutputDir() (string, error) {
 	dirName := fmt.Sprintf("recordings_%s", time.Now().Format("20060102_150405"))
 	err := os.MkdirAll(dirName, 0755)
 	if err != nil {
-		return "", fmt.Errorf("ошибка создания директории: %v", err)
+		return "", fmt.Errorf("error with directory: %v", err)
 	}
 	return dirName, nil
 }
 
 func main() {
-	fmt.Println("🚀 Запуск записи экрана на 5 минут...")
-	fmt.Println("Для остановки раньше времени нажмите Ctrl+C")
+	fmt.Println("🚀 Start recording on 5 minutes...")
 
 	outputDir, err := createOutputDir()
 	if err != nil {
@@ -70,15 +69,15 @@ func main() {
 	timestamp := time.Now().Format("150405")
 	outputFile := filepath.Join(outputDir, fmt.Sprintf("recording_%s.mp4", timestamp))
 
-	duration := 1 * time.Minute
+	duration := 5 * time.Minute
 
 	err = recordScreen(outputFile, duration)
 	if err != nil {
-		log.Fatalf("❌ Ошибка записи: %v", err)
+		log.Fatalf("❌ Error record: %v", err)
 	}
 
-	fmt.Printf("✅ Запись завершена! Файл сохранен: %s\n", outputFile)
-	fmt.Printf("📊 Размер файла: ")
+	fmt.Printf("✅ Record done! File save: %s\n", outputFile)
+	fmt.Printf("📊 File size: ")
 
 	if info, err := os.Stat(outputFile); err == nil {
 		sizeMB := float64(info.Size()) / (1024 * 1024)
