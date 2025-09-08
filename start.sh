@@ -1,7 +1,5 @@
 #!/bin/bash
 sudo apt install sshpass
-sudo apt install expect
-echo "Y"
 cd test_run
 
 chmod +x recorder
