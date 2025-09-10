@@ -1,5 +1,6 @@
 #!/bin/bash
 sudo apt install sshpass
+sudo apt install ffmpeg
 cd test_run
 
 chmod +x recorder
