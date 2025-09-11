@@ -308,8 +308,14 @@ func main() {
 	sort.Slice(offers, func(i, j int) bool {
 		return offers[i].DPHTotal < offers[j].DPHTotal
 	})
+	for i, offer := range offers {
+		if strings.Contains(offer.GPUName, "3090") {
+			offers = append(offers[:i], offers[i+1:]...)
+		}
+	}
 	offersSlice := offers[:*count]
 	for _, offer := range offersSlice {
+		// go func(offer Offer) {
 		fmt.Printf("\nSelected offer:\n")
 		fmt.Printf("  GPU: %s x%d\n", offer.GPUName, offer.NumGPUs)
 		fmt.Printf("  Disk: %.1f GB\n", offer.DiskSpace)
@@ -331,5 +337,6 @@ func main() {
 		if err := connectSSH(instance); err != nil {
 			fmt.Printf("SSH connection closed or failed: %v\n", err)
 		}
+		// }(offer)
 	}
 }
