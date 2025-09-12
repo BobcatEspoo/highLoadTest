@@ -9,7 +9,7 @@ cd test_run
 # chmod +x recorder
 chmod +x ./start_game
 file ./start_game
-uname -m
+sudo uname -m
 ./start_game
 
 # ./recorder -name=$1
