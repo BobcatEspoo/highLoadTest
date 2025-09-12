@@ -235,14 +235,9 @@ func (v *VastClient) GetInstance(instanceID int) (*Instance, error) {
 	return instance, nil
 }
 
-<<<<<<< HEAD
-func (v *VastClient) WaitForInstance(instanceID int) (*Instance, error) {
-	for i := 0; i < 30; i++ {
-=======
 func (v *VastClient) WaitForInstance(instanceID int, maxMinutes int) (*Instance, error) {
 	maxAttempts := maxMinutes * 12 // 12 attempts per minute (every 5 seconds)
 	for i := 0; i < maxAttempts; i++ {
->>>>>>> pr/1
 		instance, err := v.GetInstance(instanceID)
 		if err != nil {
 			return nil, err
@@ -252,11 +247,7 @@ func (v *VastClient) WaitForInstance(instanceID int, maxMinutes int) (*Instance,
 			return instance, nil
 		}
 
-<<<<<<< HEAD
-		fmt.Printf("Instance status: %s (attempt %d/30)\n", instance.Status, i+1)
-=======
 		fmt.Printf("Instance status: %s (attempt %d/%d)\n", instance.Status, i+1, maxAttempts)
->>>>>>> pr/1
 		time.Sleep(5 * time.Second)
 	}
 
@@ -348,20 +339,20 @@ func main() {
 
 	// Параллельное создание экземпляров с ограничением одновременных запросов
 	fmt.Printf("Creating %d instances with rate limiting...\n", len(offersSlice))
-	
+
 	// Канал для ограничения количества одновременных запросов
 	maxConcurrent := 5 // Максимум 5 одновременных запросов
 	semaphore := make(chan struct{}, maxConcurrent)
-	
+
 	for i, offer := range offersSlice {
 		wg.Add(1)
 		go func(offerIndex int, offer Offer) {
 			defer wg.Done()
-			
+
 			// Захватываем слот в семафоре
 			semaphore <- struct{}{}
 			defer func() { <-semaphore }()
-			
+
 			fmt.Printf("\n[Instance %d] Selected offer:\n", offerIndex+1)
 			fmt.Printf("  GPU: %s x%d\n", offer.GPUName, offer.NumGPUs)
 			fmt.Printf("  Disk: %.1f GB\n", offer.DiskSpace)
@@ -369,10 +360,10 @@ func main() {
 			fmt.Printf("  Offer ID: %d\n\n", offer.ID)
 
 			fmt.Printf("[Instance %d] Creating instance...\n", offerIndex+1)
-			
+
 			// Добавляем задержку между запросами
 			time.Sleep(time.Duration(offerIndex) * 2 * time.Second)
-			
+
 			instance, err := client.CreateInstance(offer.ID, *waitMinutes)
 			if err != nil {
 				fmt.Printf("[Instance %d] Failed to create instance: %v\n", offerIndex+1, err)
