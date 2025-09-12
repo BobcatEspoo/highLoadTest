@@ -135,7 +135,7 @@ func (v *VastClient) SearchOffers() ([]Offer, error) {
 var sshKeySetOnce sync.Once
 var globalSSHKeyError error
 
-func (v *VastClient) CreateInstance(offerID int, waitMinutes int) (*Instance, error) {
+func (v *VastClient) CreateInstance(offerID int) (*Instance, error) {
 	// Устанавливаем SSH ключ только один раз глобально
 	sshKeySetOnce.Do(func() {
 		sshKey, err := getOrCreateSSHKey()
@@ -188,9 +188,8 @@ func (v *VastClient) CreateInstance(offerID int, waitMinutes int) (*Instance, er
 	}
 
 	fmt.Printf("Instance created with ID: %d\n", contractID)
-	fmt.Println("Waiting for instance to be ready...")
 
-	return v.WaitForInstance(contractID, waitMinutes)
+	return &Instance{ID: contractID}, nil
 }
 
 func (v *VastClient) SetSSHKey(publicKey string) error {
@@ -364,17 +363,13 @@ func main() {
 			// Добавляем задержку между запросами
 			time.Sleep(time.Duration(offerIndex) * 2 * time.Second)
 			
-			instance, err := client.CreateInstance(offer.ID, *waitMinutes)
+			instance, err := client.CreateInstance(offer.ID)
 			if err != nil {
 				fmt.Printf("[Instance %d] Failed to create instance: %v\n", offerIndex+1, err)
 				return
 			}
 
-			fmt.Printf("\n[Instance %d] Instance is ready!\n", offerIndex+1)
-			fmt.Printf("  ID: %d\n", instance.ID)
-			fmt.Printf("  SSH Host: %s\n", instance.SSHHost)
-			fmt.Printf("  SSH Port: %d\n", instance.SSHPort)
-			fmt.Printf("  Public IP: %s\n", instance.PublicIPAddr)
+			fmt.Printf("\n[Instance %d] Instance created with ID: %d\n", offerIndex+1, instance.ID)
 
 			mu.Lock()
 			createdInstances = append(createdInstances, instance)
@@ -385,15 +380,45 @@ func main() {
 	// Ждем завершения создания всех экземпляров
 	wg.Wait()
 
-	fmt.Printf("\n=== POOL CREATION COMPLETED ===\n")
-	fmt.Printf("Successfully created %d instances\n", len(createdInstances))
-
-	// Подключение к экземплярам после создания пула
-	fmt.Printf("\nConnecting to instances...\n")
-	for i, instance := range createdInstances {
-		fmt.Printf("\n[Instance %d/%d] Connecting to ID %d...\n", i+1, len(createdInstances), instance.ID)
-		if err := connectSSH(instance); err != nil {
-			fmt.Printf("SSH connection to instance %d closed or failed: %v\n", instance.ID, err)
+	fmt.Printf("\n=== ALL INSTANCES CREATED ===\n")
+	fmt.Printf("Created %d instances, waiting %d minutes for them to be ready...\n", len(createdInstances), *waitMinutes)
+	
+	// Ждем глобальный таймаут
+	time.Sleep(time.Duration(*waitMinutes) * time.Minute)
+	
+	// Собираем готовые экземпляры
+	fmt.Printf("\n=== CHECKING READY INSTANCES ===\n")
+	var readyInstances []*Instance
+	
+	for _, instance := range createdInstances {
+		fmt.Printf("Checking instance %d... ", instance.ID)
+		readyInstance, err := client.GetInstance(instance.ID)
+		if err != nil {
+			fmt.Printf("ERROR: %v\n", err)
+			continue
 		}
+		
+		if readyInstance.Status == "running" && readyInstance.SSHHost != "" {
+			fmt.Printf("READY (Host: %s, Port: %d)\n", readyInstance.SSHHost, readyInstance.SSHPort)
+			readyInstances = append(readyInstances, readyInstance)
+		} else {
+			fmt.Printf("NOT READY (Status: %s)\n", readyInstance.Status)
+		}
+	}
+
+	fmt.Printf("\n=== POOL READY ===\n")
+	fmt.Printf("Ready instances: %d/%d\n", len(readyInstances), len(createdInstances))
+
+	// Подключение к готовым экземплярам
+	if len(readyInstances) > 0 {
+		fmt.Printf("\nConnecting to ready instances...\n")
+		for i, instance := range readyInstances {
+			fmt.Printf("\n[Instance %d/%d] Connecting to ID %d...\n", i+1, len(readyInstances), instance.ID)
+			if err := connectSSH(instance); err != nil {
+				fmt.Printf("SSH connection to instance %d closed or failed: %v\n", instance.ID, err)
+			}
+		}
+	} else {
+		fmt.Printf("\nNo ready instances to connect to.\n")
 	}
 }
