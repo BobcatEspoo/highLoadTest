@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -131,23 +132,36 @@ func (v *VastClient) SearchOffers() ([]Offer, error) {
 	return result.Offers, nil
 }
 
-func (v *VastClient) CreateInstance(offerID int) (*Instance, error) {
-	sshKey, err := getOrCreateSSHKey()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get SSH key: %v", err)
-	}
+var sshKeySetOnce sync.Once
+var globalSSHKeyError error
 
-	err = v.SetSSHKey(sshKey)
-	if err != nil {
-		fmt.Printf("Failed to set SSH key via API: %v\n", err)
-		fmt.Println("Trying to add SSH key via CLI...")
-
-		cmd := exec.Command("vastai", "create", "ssh-key", sshKey)
-		output, cmdErr := cmd.CombinedOutput()
-		if cmdErr != nil {
-			return nil, fmt.Errorf("failed to add SSH key via CLI: %v\nOutput: %s", cmdErr, string(output))
+func (v *VastClient) CreateInstance(offerID int, waitMinutes int) (*Instance, error) {
+	// Устанавливаем SSH ключ только один раз глобально
+	sshKeySetOnce.Do(func() {
+		sshKey, err := getOrCreateSSHKey()
+		if err != nil {
+			globalSSHKeyError = fmt.Errorf("failed to get SSH key: %v", err)
+			return
 		}
-		fmt.Printf("SSH key added via CLI: %s\n", string(output))
+
+		err = v.SetSSHKey(sshKey)
+		if err != nil {
+			fmt.Printf("Failed to set SSH key via API: %v\n", err)
+			fmt.Println("Trying to add SSH key via CLI...")
+
+			cmd := exec.Command("vastai", "create", "ssh-key", sshKey)
+			output, cmdErr := cmd.CombinedOutput()
+			if cmdErr != nil {
+				globalSSHKeyError = fmt.Errorf("failed to add SSH key via CLI: %v\nOutput: %s", cmdErr, string(output))
+				return
+			}
+			fmt.Printf("SSH key added via CLI: %s\n", string(output))
+		}
+		fmt.Println("SSH key configured successfully")
+	})
+
+	if globalSSHKeyError != nil {
+		return nil, globalSSHKeyError
 	}
 
 	fmt.Println("Creating instance via CLI...")
@@ -166,14 +180,17 @@ func (v *VastClient) CreateInstance(offerID int) (*Instance, error) {
 	fmt.Printf("Instance creation output: %s\n", outputStr)
 
 	var contractID int
+	// Try parsing both success and failure cases since contract ID is created in both
 	if _, err := fmt.Sscanf(outputStr, "Started. {'success': True, 'new_contract': %d}", &contractID); err != nil {
-		return nil, fmt.Errorf("failed to parse contract ID from output: %s", outputStr)
+		if _, err2 := fmt.Sscanf(outputStr, "Started. {'success': False, 'new_contract': %d}", &contractID); err2 != nil {
+			return nil, fmt.Errorf("failed to parse contract ID from output: %s", outputStr)
+		}
 	}
 
 	fmt.Printf("Instance created with ID: %d\n", contractID)
 	fmt.Println("Waiting for instance to be ready...")
 
-	return v.WaitForInstance(contractID)
+	return v.WaitForInstance(contractID, waitMinutes)
 }
 
 func (v *VastClient) SetSSHKey(publicKey string) error {
@@ -218,8 +235,9 @@ func (v *VastClient) GetInstance(instanceID int) (*Instance, error) {
 	return instance, nil
 }
 
-func (v *VastClient) WaitForInstance(instanceID int) (*Instance, error) {
-	for i := 0; i < 60; i++ {
+func (v *VastClient) WaitForInstance(instanceID int, maxMinutes int) (*Instance, error) {
+	maxAttempts := maxMinutes * 12 // 12 attempts per minute (every 5 seconds)
+	for i := 0; i < maxAttempts; i++ {
 		instance, err := v.GetInstance(instanceID)
 		if err != nil {
 			return nil, err
@@ -229,11 +247,11 @@ func (v *VastClient) WaitForInstance(instanceID int) (*Instance, error) {
 			return instance, nil
 		}
 
-		fmt.Printf("Instance status: %s (attempt %d/60)\n", instance.Status, i+1)
+		fmt.Printf("Instance status: %s (attempt %d/%d)\n", instance.Status, i+1, maxAttempts)
 		time.Sleep(5 * time.Second)
 	}
 
-	return nil, fmt.Errorf("instance did not become ready in time")
+	return nil, fmt.Errorf("instance did not become ready in %d minutes", maxMinutes)
 }
 
 func getOrCreateSSHKey() (string, error) {
@@ -290,6 +308,7 @@ func connectSSH(instance *Instance) error {
 
 func main() {
 	count := flag.Int("count", 1, "how many instances needed")
+	waitMinutes := flag.Int("wait", 5, "minutes to wait for instances to be ready")
 	flag.Parse()
 	client := NewVastClient(VASTAI_API_KEY)
 
@@ -314,29 +333,67 @@ func main() {
 		}
 	}
 	offersSlice := offers[:*count]
-	for _, offer := range offersSlice {
-		// go func(offer Offer) {
-		fmt.Printf("\nSelected offer:\n")
-		fmt.Printf("  GPU: %s x%d\n", offer.GPUName, offer.NumGPUs)
-		fmt.Printf("  Disk: %.1f GB\n", offer.DiskSpace)
-		fmt.Printf("  Price: $%.4f/hour\n", offer.DPHTotal)
-		fmt.Printf("  Offer ID: %d\n\n", offer.ID)
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var createdInstances []*Instance
 
-		fmt.Println("Creating instance...")
-		instance, err := client.CreateInstance(offer.ID)
-		if err != nil {
-			log.Fatalf("Failed to create instance: %v", err)
-		}
+	// Параллельное создание экземпляров с ограничением одновременных запросов
+	fmt.Printf("Creating %d instances with rate limiting...\n", len(offersSlice))
+	
+	// Канал для ограничения количества одновременных запросов
+	maxConcurrent := 5 // Максимум 5 одновременных запросов
+	semaphore := make(chan struct{}, maxConcurrent)
+	
+	for i, offer := range offersSlice {
+		wg.Add(1)
+		go func(offerIndex int, offer Offer) {
+			defer wg.Done()
+			
+			// Захватываем слот в семафоре
+			semaphore <- struct{}{}
+			defer func() { <-semaphore }()
+			
+			fmt.Printf("\n[Instance %d] Selected offer:\n", offerIndex+1)
+			fmt.Printf("  GPU: %s x%d\n", offer.GPUName, offer.NumGPUs)
+			fmt.Printf("  Disk: %.1f GB\n", offer.DiskSpace)
+			fmt.Printf("  Price: $%.4f/hour\n", offer.DPHTotal)
+			fmt.Printf("  Offer ID: %d\n\n", offer.ID)
 
-		fmt.Printf("\nInstance is ready!\n")
-		fmt.Printf("  ID: %d\n", instance.ID)
-		fmt.Printf("  SSH Host: %s\n", instance.SSHHost)
-		fmt.Printf("  SSH Port: %d\n", instance.SSHPort)
-		fmt.Printf("  Public IP: %s\n", instance.PublicIPAddr)
+			fmt.Printf("[Instance %d] Creating instance...\n", offerIndex+1)
+			
+			// Добавляем задержку между запросами
+			time.Sleep(time.Duration(offerIndex) * 2 * time.Second)
+			
+			instance, err := client.CreateInstance(offer.ID, *waitMinutes)
+			if err != nil {
+				fmt.Printf("[Instance %d] Failed to create instance: %v\n", offerIndex+1, err)
+				return
+			}
 
+			fmt.Printf("\n[Instance %d] Instance is ready!\n", offerIndex+1)
+			fmt.Printf("  ID: %d\n", instance.ID)
+			fmt.Printf("  SSH Host: %s\n", instance.SSHHost)
+			fmt.Printf("  SSH Port: %d\n", instance.SSHPort)
+			fmt.Printf("  Public IP: %s\n", instance.PublicIPAddr)
+
+			mu.Lock()
+			createdInstances = append(createdInstances, instance)
+			mu.Unlock()
+		}(i, offer)
+	}
+
+	// Ждем завершения создания всех экземпляров
+	wg.Wait()
+
+	fmt.Printf("\n=== POOL CREATION COMPLETED ===\n")
+	fmt.Printf("Successfully created %d instances\n", len(createdInstances))
+
+	// Подключение к экземплярам после создания пула
+	fmt.Printf("\nConnecting to instances...\n")
+	for i, instance := range createdInstances {
+		fmt.Printf("\n[Instance %d/%d] Connecting to ID %d...\n", i+1, len(createdInstances), instance.ID)
 		if err := connectSSH(instance); err != nil {
-			fmt.Printf("SSH connection closed or failed: %v\n", err)
+			fmt.Printf("SSH connection to instance %d closed or failed: %v\n", instance.ID, err)
 		}
-		// }(offer)
 	}
 }
