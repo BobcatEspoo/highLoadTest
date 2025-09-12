@@ -309,7 +309,7 @@ func main() {
 		return offers[i].DPHTotal < offers[j].DPHTotal
 	})
 	for i, offer := range offers {
-		if strings.Contains(offer.GPUName, "3090") {
+		if strings.Contains(offer.GPUName, "3090") || strings.Contains(offer.GPUName, "4090") {
 			offers = append(offers[:i], offers[i+1:]...)
 		}
 	}
