@@ -7,7 +7,7 @@ sudo apt install sshpass
 cd test_run
 
 # chmod +x recorder
-chmod +x start_game
+chmod +x ./start_game
 
 ./start_game
 
