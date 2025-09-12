@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os/exec"
 )
@@ -23,4 +24,5 @@ func main() {
 	if err != nil {
 		log.Fatalf("Error while start chrome: %v", err)
 	}
+	fmt.Print("started Successful!")
 }
