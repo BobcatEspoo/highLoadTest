@@ -1,9 +1,13 @@
-Start
+# High Load Test
 
-Example:
+GPU load testing with vast.ai instances.
 
-git clone https://github.com/BobcatEspoo/highLoadTest.git
+## Usage
 
-cd highLoadTest
+```bash
+# Build binaries for Linux
+make build
 
-bash start.sh gtx1660ti
+# Create 50 instances, wait 3 minutes  
+go run createInstance/main.go -count=50 -wait=3
+```
