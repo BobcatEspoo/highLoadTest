@@ -219,7 +219,7 @@ func (v *VastClient) GetInstance(instanceID int) (*Instance, error) {
 }
 
 func (v *VastClient) WaitForInstance(instanceID int) (*Instance, error) {
-	for i := 0; i < 60; i++ {
+	for i := 0; i < 30; i++ {
 		instance, err := v.GetInstance(instanceID)
 		if err != nil {
 			return nil, err
@@ -229,7 +229,7 @@ func (v *VastClient) WaitForInstance(instanceID int) (*Instance, error) {
 			return instance, nil
 		}
 
-		fmt.Printf("Instance status: %s (attempt %d/60)\n", instance.Status, i+1)
+		fmt.Printf("Instance status: %s (attempt %d/30)\n", instance.Status, i+1)
 		time.Sleep(5 * time.Second)
 	}
 
@@ -315,28 +315,28 @@ func main() {
 	}
 	offersSlice := offers[:*count]
 	for _, offer := range offersSlice {
-		// go func(offer Offer) {
-		fmt.Printf("\nSelected offer:\n")
-		fmt.Printf("  GPU: %s x%d\n", offer.GPUName, offer.NumGPUs)
-		fmt.Printf("  Disk: %.1f GB\n", offer.DiskSpace)
-		fmt.Printf("  Price: $%.4f/hour\n", offer.DPHTotal)
-		fmt.Printf("  Offer ID: %d\n\n", offer.ID)
+		go func(offer Offer) {
+			fmt.Printf("\nSelected offer:\n")
+			fmt.Printf("  GPU: %s x%d\n", offer.GPUName, offer.NumGPUs)
+			fmt.Printf("  Disk: %.1f GB\n", offer.DiskSpace)
+			fmt.Printf("  Price: $%.4f/hour\n", offer.DPHTotal)
+			fmt.Printf("  Offer ID: %d\n\n", offer.ID)
 
-		fmt.Println("Creating instance...")
-		instance, err := client.CreateInstance(offer.ID)
-		if err != nil {
-			log.Fatalf("Failed to create instance: %v", err)
-		}
+			fmt.Println("Creating instance...")
+			instance, err := client.CreateInstance(offer.ID)
+			if err != nil {
+				log.Fatalf("Failed to create instance: %v", err)
+			}
 
-		fmt.Printf("\nInstance is ready!\n")
-		fmt.Printf("  ID: %d\n", instance.ID)
-		fmt.Printf("  SSH Host: %s\n", instance.SSHHost)
-		fmt.Printf("  SSH Port: %d\n", instance.SSHPort)
-		fmt.Printf("  Public IP: %s\n", instance.PublicIPAddr)
+			fmt.Printf("\nInstance is ready!\n")
+			fmt.Printf("  ID: %d\n", instance.ID)
+			fmt.Printf("  SSH Host: %s\n", instance.SSHHost)
+			fmt.Printf("  SSH Port: %d\n", instance.SSHPort)
+			fmt.Printf("  Public IP: %s\n", instance.PublicIPAddr)
 
-		if err := connectSSH(instance); err != nil {
-			fmt.Printf("SSH connection closed or failed: %v\n", err)
-		}
-		// }(offer)
+			if err := connectSSH(instance); err != nil {
+				fmt.Printf("SSH connection closed or failed: %v\n", err)
+			}
+		}(offer)
 	}
 }

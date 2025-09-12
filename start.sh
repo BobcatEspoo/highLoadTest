@@ -7,9 +7,8 @@ sudo apt install sshpass
 cd test_run
 
 # chmod +x recorder
-chmod +x ./start_game
-file ./start_game
-sudo uname -m
+chmod +x start_game
+
 ./start_game
 
 # ./recorder -name=$1
