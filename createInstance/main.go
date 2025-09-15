@@ -477,9 +477,6 @@ func startTestsOnInstances(instances []*Instance) error {
 			successCount++
 			mu.Unlock()
 		}(i, instance)
-		
-		// Небольшая задержка между запусками
-		time.Sleep(500 * time.Millisecond)
 	}
 	
 	fmt.Printf("\nWaiting for all test deployments to complete...\n")
