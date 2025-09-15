@@ -57,7 +57,9 @@ func uploadSingleFile(filePath, sessionID string) error {
 	fileName := filepath.Base(filePath)
 	
 	// Создаем lftp скрипт для загрузки одного файла
-	lftpScript := fmt.Sprintf(`open sftp://storage:storage123@kryuchenko.org
+	lftpScript := fmt.Sprintf(`set sftp:auto-confirm yes
+set ssl:verify-certificate no
+open sftp://storage:storage123@kryuchenko.org
 cd files/%s
 put %s -o %s
 quit
@@ -94,7 +96,9 @@ func uploadToRemote(localDir, sessionID string) error {
 	log.Printf("Uploading %d files to remote storage via SFTP...", len(files))
 
 	// Создаем lftp скрипт (загружаем в папку files)
-	lftpScript := fmt.Sprintf(`open sftp://storage:storage123@kryuchenko.org
+	lftpScript := fmt.Sprintf(`set sftp:auto-confirm yes
+set ssl:verify-certificate no
+open sftp://storage:storage123@kryuchenko.org
 cd files
 mkdir %s
 cd %s
