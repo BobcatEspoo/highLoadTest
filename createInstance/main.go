@@ -52,14 +52,15 @@ type CreateInstanceRequest struct {
 }
 
 type Offer struct {
-	ID          int     `json:"id"`
-	GPUName     string  `json:"gpu_name"`
-	NumGPUs     int     `json:"num_gpus"`
-	DiskSpace   float64 `json:"disk_space"`
-	DPHTotal    float64 `json:"dph_total"`
-	CudaMaxGood float64 `json:"cuda_max_good"`
-	Rentable    bool    `json:"rentable"`
-	MinBid      float64 `json:"min_bid"`
+	ID           int     `json:"id"`
+	GPUName      string  `json:"gpu_name"`
+	NumGPUs      int     `json:"num_gpus"`
+	DiskSpace    float64 `json:"disk_space"`
+	DPHTotal     float64 `json:"dph_total"`
+	CudaMaxGood  float64 `json:"cuda_max_good"`
+	Rentable     bool    `json:"rentable"`
+	MinBid       float64 `json:"min_bid"`
+	Verification string  `json:"verification"`
 }
 
 func NewVastClient(apiKey string) *VastClient {
@@ -120,11 +121,16 @@ func (v *VastClient) makeRequest(method, endpoint string, body interface{}) ([]b
 	return respBody, nil
 }
 
-func (v *VastClient) SearchOffers() ([]Offer, error) {
+func (v *VastClient) SearchOffers(verifiedOnly bool) ([]Offer, error) {
 	searchQuery := map[string]interface{}{
 		"rentable":             map[string]bool{"eq": true},
 		"disk_space":           map[string]float64{"gte": 30.0},
 		"gpu_display_active":   map[string]bool{"eq": true},
+	}
+	
+	// Добавляем фильтр верификации если нужно
+	if verifiedOnly {
+		searchQuery["verification"] = map[string]string{"eq": "verified"}
 	}
 
 	queryJSON, _ := json.Marshal(searchQuery)
@@ -507,11 +513,16 @@ func main() {
 	waitMinutes := flag.Int("wait", 5, "minutes to wait for instances to be ready")
 	maxPrice := flag.Float64("max-price", 0.50, "maximum price per hour in USD")
 	startTests := flag.Bool("start-tests", false, "start tests on created instances after waiting")
+	verifiedOnly := flag.Bool("verified", false, "use only verified instances")
 	flag.Parse()
 	client := NewVastClient(VASTAI_API_KEY)
 
-	fmt.Println("Searching for available GPU instances...")
-	offers, err := client.SearchOffers()
+	if *verifiedOnly {
+		fmt.Println("Searching for VERIFIED GPU instances...")
+	} else {
+		fmt.Println("Searching for ALL available GPU instances...")
+	}
+	offers, err := client.SearchOffers(*verifiedOnly)
 	if err != nil {
 		log.Fatalf("Failed to search offers: %v", err)
 	}
@@ -574,6 +585,7 @@ func main() {
 			fmt.Printf("  Disk: %.1f GB\n", offer.DiskSpace)
 			fmt.Printf("  Price: $%.4f/hour\n", offer.DPHTotal)
 			fmt.Printf("  Offer ID: %d\n", offer.ID)
+			fmt.Printf("  Verification: %s\n", offer.Verification)
 			fmt.Printf("  Min Bid: $%.4f/hour\n\n", offer.MinBid)
 
 			fmt.Printf("[Instance %d] [%s] Creating instance...\n", offerIndex+1, time.Now().Format("15:04:05"))
