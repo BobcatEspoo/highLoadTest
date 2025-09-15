@@ -400,8 +400,8 @@ func main() {
 	// Параллельное создание экземпляров с ограничением одновременных запросов
 	fmt.Printf("Creating %d instances with rate limiting...\n", len(offersSlice))
 
-	// Канал для ограничения количества одновременных запросов
-	maxConcurrent := 5 // Максимум 5 одновременных запросов
+	// Канал для ограничения количества одновременных запросов (учитываем rate limit)
+	maxConcurrent := 2 // Максимум 2 одновременных запроса для rate limit 4.5/sec
 	semaphore := make(chan struct{}, maxConcurrent)
 
 	for i, offer := range offersSlice {
@@ -421,8 +421,8 @@ func main() {
 
 			fmt.Printf("[Instance %d] Creating instance...\n", offerIndex+1)
 
-			// Добавляем задержку между запросами
-			time.Sleep(time.Duration(offerIndex) * 2 * time.Second)
+			// Добавляем задержку между запросами для rate limiting (max 4.5 req/sec)
+			time.Sleep(time.Duration(offerIndex) * 500 * time.Millisecond)
 
 			instance, err := client.CreateInstance(offer.ID)
 			if err != nil {
