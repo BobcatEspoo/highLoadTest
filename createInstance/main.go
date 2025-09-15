@@ -347,7 +347,7 @@ func getOrCreateSSHKey() (string, error) {
 func connectSSH(instance *Instance) error {
 	homeDir, _ := os.UserHomeDir()
 	keyPath := fmt.Sprintf("%s/.ssh/vastai_rsa", homeDir)
-	cmdStr := fmt.Sprintf("git clone https://github.com/BobcatEspoo/highLoadTest.git; cd highLoadTest; bash start.sh %v", instance.ID)
+	cmdStr := fmt.Sprintf("git clone https://github.com/kryuchenko/highLoadTest.git; cd highLoadTest; bash start.sh %v", instance.ID)
 	sshTarget := fmt.Sprintf("root@%s", instance.SSHHost)
 	fmt.Printf("\nConnecting to instance via SSH...\n")
 
