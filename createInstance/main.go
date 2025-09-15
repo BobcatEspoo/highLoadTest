@@ -167,7 +167,7 @@ func (v *VastClient) CreateInstance(offerID int) (*Instance, error) {
 	cmd := exec.Command("vastai", "create", "instance", fmt.Sprintf("%d", offerID),
 		"--image", "vastai/linux-desktop:@vastai-automatic-tag",
 		"--env", envParams,
-		"--onstart-cmd", "env | grep _ >> /etc/environment; echo 'Desktop environment starting...'",
+		"--onstart-cmd", "env | grep _ >> /etc/environment; echo \"$PORTAL_CONFIG\" | tr '|' '\\n' > /etc/portal.yaml; echo 'Portal config written to /etc/portal.yaml'; echo 'Desktop environment starting...'",
 		"--disk", "32",
 		"--jupyter",
 		"--ssh",
