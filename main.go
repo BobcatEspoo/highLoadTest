@@ -225,6 +225,34 @@ func main() {
 		log.Println("Will use lftp for uploading artifacts")
 	}
 
+	// Устанавливаем Playwright драйверы (каждая машина новая, живет минуты)
+	log.Println("Installing Playwright browsers...")
+
+	// Retry logic for Playwright installation
+	maxRetries := 3
+	var installErr error
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		log.Printf("Playwright installation attempt %d/%d...", attempt, maxRetries)
+		installErr = playwright.Install(&playwright.RunOptions{
+			Browsers: []string{"chromium"},
+		})
+		if installErr == nil {
+			log.Println("Playwright browsers installed successfully")
+			break
+		}
+		log.Printf("Attempt %d failed: %v", attempt, installErr)
+		if attempt < maxRetries {
+			waitTime := time.Duration(attempt*5) * time.Second
+			log.Printf("Waiting %v before retry...", waitTime)
+			time.Sleep(waitTime)
+		}
+	}
+
+	if installErr != nil {
+		log.Printf("Playwright install failed after %d attempts: %v", maxRetries, installErr)
+		log.Println("Trying to use system Chrome without Playwright browsers...")
+	}
+
 	// Запускаем Playwright
 	pw, err := playwright.Run()
 	if err != nil {
