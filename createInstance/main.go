@@ -616,6 +616,7 @@ func main() {
 	fmt.Printf("\n=== ALL INSTANCES CREATED ===\n")
 	fmt.Printf("Timestamp: %s\n", time.Now().Format("2006-01-02 15:04:05"))
 	fmt.Printf("Created %d instances, waiting %d minutes for them to be ready...\n", len(createdInstances), *waitMinutes)
+	fmt.Printf("Expected initialization time: 2-10 minutes depending on instance type\n")
 	
 	if len(createdInstances) > 0 {
 		fmt.Printf("\nCreated instance IDs:\n")
@@ -626,8 +627,54 @@ func main() {
 
 	fmt.Printf("\nWaiting %d minutes for instance initialization...\n", *waitMinutes)
 	for i := 1; i <= *waitMinutes; i++ {
-		fmt.Printf("  [%s] Waiting... %d/%d minutes\n", time.Now().Format("15:04:05"), i, *waitMinutes)
-		time.Sleep(1 * time.Minute)
+		fmt.Printf("\n  [%s] Minute %d/%d - Checking instance statuses:\n", time.Now().Format("15:04:05"), i, *waitMinutes)
+		
+		// Проверяем статус каждого инстанса каждую минуту
+		readyCount := 0
+		for _, instance := range createdInstances {
+			statusInstance, err := client.GetInstance(instance.ID)
+			if err != nil {
+				fmt.Printf("    Instance %d: ERROR checking status\n", instance.ID)
+				continue
+			}
+			
+			statusIcon := "⏳"
+			if statusInstance.Status == "running" {
+				statusIcon = "✅"
+				readyCount++
+			} else if statusInstance.Status == "loading" {
+				statusIcon = "🔄"
+			} else if statusInstance.Status == "created" {
+				statusIcon = "🆕"
+			} else if statusInstance.Status == "error" {
+				statusIcon = "❌"
+			}
+			
+			sshStatus := ""
+			if statusInstance.Status == "running" && statusInstance.SSHHost != "" {
+				// Быстрая проверка SSH доступности
+				cmd := exec.Command("nc", "-z", "-w", "1", statusInstance.SSHHost, strconv.Itoa(statusInstance.SSHPort))
+				if err := cmd.Run(); err == nil {
+					sshStatus = " (SSH ready)"
+				} else {
+					sshStatus = " (SSH not ready)"
+				}
+			}
+			
+			fmt.Printf("    %s Instance %d: %s%s\n", statusIcon, instance.ID, statusInstance.Status, sshStatus)
+		}
+		
+		fmt.Printf("  Ready: %d/%d instances\n", readyCount, len(createdInstances))
+		
+		// Если все готовы, можем прервать ожидание
+		if readyCount == len(createdInstances) && i < *waitMinutes {
+			fmt.Printf("\n  🎉 All instances ready! Proceeding early...\n")
+			break
+		}
+		
+		if i < *waitMinutes {
+			time.Sleep(1 * time.Minute)
+		}
 	}
 
 	// Собираем готовые экземпляры
