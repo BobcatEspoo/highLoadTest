@@ -13,6 +13,9 @@ export LANG=en_US.UTF-8
 export LC_ALL=en_US.UTF-8
 export LANGUAGE=en_US.UTF-8
 
+# Set X11 display for GUI browsers
+export DISPLAY=:20
+
 # Get instance ID from argument (passed from createInstance)
 INSTANCE_ID=${1:-"unknown"}
 log "Instance ID: $INSTANCE_ID"
