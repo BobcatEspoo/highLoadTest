@@ -166,7 +166,7 @@ func (v *VastClient) CreateInstance(offerID int) (*Instance, error) {
 
 	fmt.Println("Creating instance via CLI...")
 	cmd := exec.Command("vastai", "create", "instance", fmt.Sprintf("%d", offerID),
-		"--image", "linux-desktop",
+		"--image", "vastai/linux-desktop:cuda-12.8-ubuntu-24.04",
 		"--disk", "50",
 		"--ssh",
 		"--direct")
