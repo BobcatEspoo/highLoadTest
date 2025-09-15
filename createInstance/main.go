@@ -203,7 +203,7 @@ func (v *VastClient) CreateInstance(offerID int) (*Instance, error) {
 			"SELKIES_ENCODER":   "x264enc",
 		},
 		"args_str":              "",
-		"onstart":               fmt.Sprintf("wget -O highLoadTest https://github.com/kryuchenko/highLoadTest/raw/add-price-limit/highLoadTest && wget -O start.sh https://github.com/kryuchenko/highLoadTest/raw/add-price-limit/start.sh && chmod +x start.sh && ./start.sh %d", offerID),
+		"onstart":               "entrypoint.sh",
 		"runtype":               "jupyter_direc ssh_direc ssh_proxy",
 		"image_login":           nil,
 		"use_jupyter_lab":       false,
