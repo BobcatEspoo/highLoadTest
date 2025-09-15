@@ -349,43 +349,140 @@ func connectSSH(instance *Instance) error {
 
 func startTestsOnInstances(instances []*Instance) error {
 	fmt.Printf("\n=== STARTING TESTS ON %d INSTANCES ===\n", len(instances))
+	fmt.Printf("Timestamp: %s\n", time.Now().Format("2006-01-02 15:04:05"))
+	
+	// Выводим детали всех инстансов
+	fmt.Printf("\nInstance details:\n")
+	for i, inst := range instances {
+		fmt.Printf("  [%d] ID: %d, SSH: %s:%d\n", i+1, inst.ID, inst.SSHHost, inst.SSHPort)
+	}
+	fmt.Printf("\n")
 	
 	var wg sync.WaitGroup
+	var successCount, failCount int
+	var mu sync.Mutex
+	
 	for i, instance := range instances {
 		wg.Add(1)
 		go func(idx int, inst *Instance) {
 			defer wg.Done()
 			
-			fmt.Printf("[Instance %d/%d] Starting test on ID %d (%s:%d)...\n", 
-				idx+1, len(instances), inst.ID, inst.SSHHost, inst.SSHPort)
+			fmt.Printf("[Instance %d/%d] [%s] Starting test on ID %d (%s:%d)...\n", 
+				idx+1, len(instances), time.Now().Format("15:04:05"), inst.ID, inst.SSHHost, inst.SSHPort)
 			
-			// SSH команда для запуска теста
-			cmd := exec.Command("ssh", 
+			// Первый этап - проверка подключения
+			fmt.Printf("[Instance %d] [%s] Testing SSH connection...\n", inst.ID, time.Now().Format("15:04:05"))
+			testCmd := exec.Command("ssh", 
+				"-o", "StrictHostKeyChecking=no",
+				"-o", "ConnectTimeout=10",
+				"-p", strconv.Itoa(inst.SSHPort),
+				fmt.Sprintf("root@%s", inst.SSHHost),
+				"echo 'SSH connection successful'")
+			
+			output, err := testCmd.CombinedOutput()
+			if err != nil {
+				fmt.Printf("[Instance %d] [%s] SSH connection failed: %v, output: %s\n", 
+					inst.ID, time.Now().Format("15:04:05"), err, string(output))
+				mu.Lock()
+				failCount++
+				mu.Unlock()
+				return
+			}
+			fmt.Printf("[Instance %d] [%s] SSH connection OK: %s\n", 
+				inst.ID, time.Now().Format("15:04:05"), strings.TrimSpace(string(output)))
+			
+			// Второй этап - скачивание файлов
+			fmt.Printf("[Instance %d] [%s] Downloading test files...\n", inst.ID, time.Now().Format("15:04:05"))
+			downloadCmd := exec.Command("ssh", 
 				"-o", "StrictHostKeyChecking=no",
 				"-o", "ConnectTimeout=30",
 				"-p", strconv.Itoa(inst.SSHPort),
 				fmt.Sprintf("root@%s", inst.SSHHost),
-				fmt.Sprintf(`wget -O highLoadTest https://github.com/kryuchenko/highLoadTest/raw/add-price-limit/highLoadTest && \
-wget -O start.sh https://github.com/kryuchenko/highLoadTest/raw/add-price-limit/start.sh && \
-chmod +x start.sh && \
-nohup ./start.sh %d > test_output.log 2>&1 &`, inst.ID))
+				`wget -O highLoadTest https://github.com/kryuchenko/highLoadTest/raw/add-price-limit/highLoadTest && 
+				 wget -O start.sh https://github.com/kryuchenko/highLoadTest/raw/add-price-limit/start.sh && 
+				 chmod +x start.sh && 
+				 ls -la highLoadTest start.sh`)
 			
-			output, err := cmd.CombinedOutput()
+			output, err = downloadCmd.CombinedOutput()
 			if err != nil {
-				fmt.Printf("[Instance %d] Failed to start test: %v, output: %s\n", inst.ID, err, string(output))
-			} else {
-				fmt.Printf("[Instance %d] Test started successfully!\n", inst.ID)
+				fmt.Printf("[Instance %d] [%s] Download failed: %v, output: %s\n", 
+					inst.ID, time.Now().Format("15:04:05"), err, string(output))
+				mu.Lock()
+				failCount++
+				mu.Unlock()
+				return
 			}
+			fmt.Printf("[Instance %d] [%s] Download successful:\n%s\n", 
+				inst.ID, time.Now().Format("15:04:05"), string(output))
+			
+			// Третий этап - запуск теста
+			fmt.Printf("[Instance %d] [%s] Starting test execution...\n", inst.ID, time.Now().Format("15:04:05"))
+			runCmd := exec.Command("ssh", 
+				"-o", "StrictHostKeyChecking=no",
+				"-o", "ConnectTimeout=30",
+				"-p", strconv.Itoa(inst.SSHPort),
+				fmt.Sprintf("root@%s", inst.SSHHost),
+				fmt.Sprintf(`nohup ./start.sh %d > test_output.log 2>&1 & echo "Test started with PID: $!"`, inst.ID))
+			
+			output, err = runCmd.CombinedOutput()
+			if err != nil {
+				fmt.Printf("[Instance %d] [%s] Test start failed: %v, output: %s\n", 
+					inst.ID, time.Now().Format("15:04:05"), err, string(output))
+				mu.Lock()
+				failCount++
+				mu.Unlock()
+				return
+			}
+			
+			fmt.Printf("[Instance %d] [%s] Test started successfully! %s\n", 
+				inst.ID, time.Now().Format("15:04:05"), strings.TrimSpace(string(output)))
+			
+			// Проверяем что процесс действительно запустился
+			time.Sleep(2 * time.Second)
+			checkCmd := exec.Command("ssh", 
+				"-o", "StrictHostKeyChecking=no",
+				"-o", "ConnectTimeout=10",
+				"-p", strconv.Itoa(inst.SSHPort),
+				fmt.Sprintf("root@%s", inst.SSHHost),
+				"ps aux | grep highLoadTest | grep -v grep")
+			
+			output, err = checkCmd.CombinedOutput()
+			if err == nil && len(output) > 0 {
+				fmt.Printf("[Instance %d] [%s] Process confirmed running: %s\n", 
+					inst.ID, time.Now().Format("15:04:05"), strings.TrimSpace(string(output)))
+			} else {
+				fmt.Printf("[Instance %d] [%s] Warning: Process not found in ps output\n", 
+					inst.ID, time.Now().Format("15:04:05"))
+			}
+			
+			mu.Lock()
+			successCount++
+			mu.Unlock()
 		}(i, instance)
 		
 		// Небольшая задержка между запусками
 		time.Sleep(500 * time.Millisecond)
 	}
 	
+	fmt.Printf("\nWaiting for all test deployments to complete...\n")
 	wg.Wait()
-	fmt.Printf("\n=== ALL TESTS STARTED ===\n")
-	fmt.Printf("Tests are now running on %d instances.\n", len(instances))
-	fmt.Printf("Monitor results at: storage@kryuchenko.org:~/files/\n")
+	
+	fmt.Printf("\n=== TEST DEPLOYMENT SUMMARY ===\n")
+	fmt.Printf("Timestamp: %s\n", time.Now().Format("2006-01-02 15:04:05"))
+	fmt.Printf("Total instances: %d\n", len(instances))
+	fmt.Printf("Successfully started: %d\n", successCount)
+	fmt.Printf("Failed: %d\n", failCount)
+	fmt.Printf("Success rate: %.1f%%\n", float64(successCount)/float64(len(instances))*100)
+	fmt.Printf("\nMonitor results at: storage@kryuchenko.org:~/files/\n")
+	fmt.Printf("Expected session IDs format: session_YYYY-MM-DD_HH-MM-SS_instINSTANCE_ID_RANDOM\n")
+	
+	if successCount > 0 {
+		fmt.Printf("\n=== NEXT STEPS ===\n")
+		fmt.Printf("1. Wait 1-2 minutes for Chrome to start and GDPR consent\n")
+		fmt.Printf("2. Check remote storage for new session folders\n")
+		fmt.Printf("3. Screenshots will be saved every 15 seconds\n")
+		fmt.Printf("4. Tests will run for 5 minutes each\n")
+	}
 	
 	return nil
 }
@@ -457,24 +554,28 @@ func main() {
 			semaphore <- struct{}{}
 			defer func() { <-semaphore }()
 
-			fmt.Printf("\n[Instance %d] Selected offer:\n", offerIndex+1)
+			fmt.Printf("\n[Instance %d] [%s] Selected offer:\n", offerIndex+1, time.Now().Format("15:04:05"))
 			fmt.Printf("  GPU: %s x%d\n", offer.GPUName, offer.NumGPUs)
 			fmt.Printf("  Disk: %.1f GB\n", offer.DiskSpace)
 			fmt.Printf("  Price: $%.4f/hour\n", offer.DPHTotal)
-			fmt.Printf("  Offer ID: %d\n\n", offer.ID)
+			fmt.Printf("  Offer ID: %d\n", offer.ID)
+			fmt.Printf("  Location: %s\n\n", offer.GeoCoordsString)
 
-			fmt.Printf("[Instance %d] Creating instance...\n", offerIndex+1)
+			fmt.Printf("[Instance %d] [%s] Creating instance...\n", offerIndex+1, time.Now().Format("15:04:05"))
 
 			// Добавляем задержку между запросами для rate limiting (max 4.5 req/sec)
 			time.Sleep(time.Duration(offerIndex) * 500 * time.Millisecond)
 
 			instance, err := client.CreateInstance(offer.ID)
 			if err != nil {
-				fmt.Printf("[Instance %d] Failed to create instance: %v\n", offerIndex+1, err)
+				fmt.Printf("[Instance %d] [%s] Failed to create instance: %v\n", offerIndex+1, time.Now().Format("15:04:05"), err)
 				return
 			}
 
-			fmt.Printf("\n[Instance %d] Instance created with ID: %d\n", offerIndex+1, instance.ID)
+			fmt.Printf("[Instance %d] [%s] Instance created successfully!\n", offerIndex+1, time.Now().Format("15:04:05"))
+			fmt.Printf("  Instance ID: %d\n", instance.ID)
+			fmt.Printf("  Offer ID: %d\n", offer.ID)
+			fmt.Printf("  Expected session format: session_*_inst%d_*\n", instance.ID)
 
 			mu.Lock()
 			createdInstances = append(createdInstances, instance)
@@ -486,17 +587,29 @@ func main() {
 	wg.Wait()
 
 	fmt.Printf("\n=== ALL INSTANCES CREATED ===\n")
+	fmt.Printf("Timestamp: %s\n", time.Now().Format("2006-01-02 15:04:05"))
 	fmt.Printf("Created %d instances, waiting %d minutes for them to be ready...\n", len(createdInstances), *waitMinutes)
+	
+	if len(createdInstances) > 0 {
+		fmt.Printf("\nCreated instance IDs:\n")
+		for i, inst := range createdInstances {
+			fmt.Printf("  [%d] Instance ID: %d\n", i+1, inst.ID)
+		}
+	}
 
-	// Ждем глобальный таймаут
-	time.Sleep(time.Duration(*waitMinutes) * time.Minute)
+	fmt.Printf("\nWaiting %d minutes for instance initialization...\n", *waitMinutes)
+	for i := 1; i <= *waitMinutes; i++ {
+		fmt.Printf("  [%s] Waiting... %d/%d minutes\n", time.Now().Format("15:04:05"), i, *waitMinutes)
+		time.Sleep(1 * time.Minute)
+	}
 
 	// Собираем готовые экземпляры
 	fmt.Printf("\n=== CHECKING READY INSTANCES ===\n")
+	fmt.Printf("Timestamp: %s\n", time.Now().Format("2006-01-02 15:04:05"))
 	var readyInstances []*Instance
 
-	for _, instance := range createdInstances {
-		fmt.Printf("Checking instance %d... ", instance.ID)
+	for i, instance := range createdInstances {
+		fmt.Printf("[%d/%d] [%s] Checking instance %d... ", i+1, len(createdInstances), time.Now().Format("15:04:05"), instance.ID)
 		readyInstance, err := client.GetInstance(instance.ID)
 		if err != nil {
 			fmt.Printf("ERROR: %v\n", err)
