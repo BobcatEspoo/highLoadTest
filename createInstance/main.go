@@ -308,6 +308,7 @@ func connectSSH(instance *Instance) error {
 func main() {
 	count := flag.Int("count", 1, "how many instances needed")
 	waitMinutes := flag.Int("wait", 5, "minutes to wait for instances to be ready")
+	maxPrice := flag.Float64("max-price", 0.50, "maximum price per hour in USD")
 	flag.Parse()
 	client := NewVastClient(VASTAI_API_KEY)
 
@@ -321,16 +322,34 @@ func main() {
 		log.Fatal("No suitable offers found")
 	}
 
-	fmt.Printf("Found %d offers. Selecting the cheapest one...\n", len(offers))
+	fmt.Printf("Found %d offers. Filtering by max price $%.2f/hour...\n", len(offers), *maxPrice)
 
-	sort.Slice(offers, func(i, j int) bool {
-		return offers[i].DPHTotal < offers[j].DPHTotal
-	})
-	for i, offer := range offers {
-		if strings.Contains(offer.GPUName, "3090") || strings.Contains(offer.GPUName, "4090") {
-			offers = append(offers[:i], offers[i+1:]...)
+	// Filter by price first
+	var filteredOffers []Offer
+	for _, offer := range offers {
+		if offer.DPHTotal <= *maxPrice {
+			filteredOffers = append(filteredOffers, offer)
 		}
 	}
+	
+	if len(filteredOffers) == 0 {
+		log.Fatalf("No offers found under $%.2f/hour", *maxPrice)
+	}
+	
+	fmt.Printf("Found %d offers under $%.2f/hour. Selecting the cheapest ones...\n", len(filteredOffers), *maxPrice)
+
+	sort.Slice(filteredOffers, func(i, j int) bool {
+		return filteredOffers[i].DPHTotal < filteredOffers[j].DPHTotal
+	})
+	
+	// Remove expensive GPUs  
+	for i := len(filteredOffers) - 1; i >= 0; i-- {
+		if strings.Contains(filteredOffers[i].GPUName, "3090") || strings.Contains(filteredOffers[i].GPUName, "4090") {
+			filteredOffers = append(filteredOffers[:i], filteredOffers[i+1:]...)
+		}
+	}
+	
+	offers = filteredOffers
 	offersSlice := offers[:*count]
 	var wg sync.WaitGroup
 	var mu sync.Mutex
