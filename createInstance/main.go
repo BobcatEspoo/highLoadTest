@@ -347,10 +347,54 @@ func connectSSH(instance *Instance) error {
 	return cmd.Run()
 }
 
+func startTestsOnInstances(instances []*Instance) error {
+	fmt.Printf("\n=== STARTING TESTS ON %d INSTANCES ===\n", len(instances))
+	
+	var wg sync.WaitGroup
+	for i, instance := range instances {
+		wg.Add(1)
+		go func(idx int, inst *Instance) {
+			defer wg.Done()
+			
+			fmt.Printf("[Instance %d/%d] Starting test on ID %d (%s:%d)...\n", 
+				idx+1, len(instances), inst.ID, inst.SSHHost, inst.SSHPort)
+			
+			// SSH команда для запуска теста
+			cmd := exec.Command("ssh", 
+				"-o", "StrictHostKeyChecking=no",
+				"-o", "ConnectTimeout=30",
+				"-p", strconv.Itoa(inst.SSHPort),
+				fmt.Sprintf("root@%s", inst.SSHHost),
+				fmt.Sprintf(`wget -O highLoadTest https://github.com/kryuchenko/highLoadTest/raw/add-price-limit/highLoadTest && \
+wget -O start.sh https://github.com/kryuchenko/highLoadTest/raw/add-price-limit/start.sh && \
+chmod +x start.sh && \
+nohup ./start.sh %d > test_output.log 2>&1 &`, inst.ID))
+			
+			output, err := cmd.CombinedOutput()
+			if err != nil {
+				fmt.Printf("[Instance %d] Failed to start test: %v, output: %s\n", inst.ID, err, string(output))
+			} else {
+				fmt.Printf("[Instance %d] Test started successfully!\n", inst.ID)
+			}
+		}(i, instance)
+		
+		// Небольшая задержка между запусками
+		time.Sleep(500 * time.Millisecond)
+	}
+	
+	wg.Wait()
+	fmt.Printf("\n=== ALL TESTS STARTED ===\n")
+	fmt.Printf("Tests are now running on %d instances.\n", len(instances))
+	fmt.Printf("Monitor results at: storage@kryuchenko.org:~/files/\n")
+	
+	return nil
+}
+
 func main() {
 	count := flag.Int("count", 1, "how many instances needed")
 	waitMinutes := flag.Int("wait", 5, "minutes to wait for instances to be ready")
 	maxPrice := flag.Float64("max-price", 0.50, "maximum price per hour in USD")
+	startTests := flag.Bool("start-tests", false, "start tests on created instances after waiting")
 	flag.Parse()
 	client := NewVastClient(VASTAI_API_KEY)
 
@@ -477,6 +521,14 @@ func main() {
 			fmt.Printf("\n[Instance %d/%d] Connecting to ID %d...\n", i+1, len(readyInstances), instance.ID)
 			if err := connectSSH(instance); err != nil {
 				fmt.Printf("SSH connection to instance %d closed or failed: %v\n", instance.ID, err)
+			}
+		}
+		
+		// Запускаем тесты если флаг установлен
+		if *startTests && len(readyInstances) > 0 {
+			err := startTestsOnInstances(readyInstances)
+			if err != nil {
+				fmt.Printf("Error starting tests: %v\n", err)
 			}
 		}
 	} else {
