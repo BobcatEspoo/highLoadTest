@@ -644,16 +644,8 @@ func main() {
 
 	// Подключение к готовым экземплярам
 	if len(readyInstances) > 0 {
-		fmt.Printf("\nConnecting to ready instances...\n")
-		for i, instance := range readyInstances {
-			fmt.Printf("\n[Instance %d/%d] Connecting to ID %d...\n", i+1, len(readyInstances), instance.ID)
-			if err := connectSSH(instance); err != nil {
-				fmt.Printf("SSH connection to instance %d closed or failed: %v\n", instance.ID, err)
-			}
-		}
-		
 		// Запускаем тесты если флаг установлен
-		if *startTests && len(readyInstances) > 0 {
+		if *startTests {
 			err := startTestsOnInstances(readyInstances)
 			if err != nil {
 				fmt.Printf("Error starting tests: %v\n", err)
