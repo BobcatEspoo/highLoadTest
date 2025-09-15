@@ -161,33 +161,64 @@ func (v *VastClient) CreateInstance(offerID int) (*Instance, error) {
 		return nil, globalSSHKeyError
 	}
 
-	fmt.Println("Creating instance via CLI...")
+	fmt.Println("Creating instance via API...")
 	
-	// Используем базовую конфигурацию без сложных параметров
-	cmd := exec.Command("vastai", "create", "instance", fmt.Sprintf("%d", offerID),
-		"--image", "vastai/linux-desktop:@vastai-automatic-tag",
-		"--disk", "32",
-		"--jupyter",
-		"--ssh",
-		"--direct")
-
-	output, err := cmd.CombinedOutput()
+	// Создаем через API с правильной структурой как в UI
+	portalConfig := "localhost:1111:11111:/:Instance Portal|localhost:6100:16100:/:Selkies Low Latency Desktop|localhost:6200:16200:/guacamole:Apache Guacamole Desktop (VNC)|localhost:8080:8080:/:Jupyter|localhost:8080:8080:/terminals/1:Jupyter Terminal|localhost:8384:18384:/:Syncthing"
+	
+	endpoint := "/asks/" + fmt.Sprintf("%d", offerID) + "/"
+	
+	// Используем точную структуру из curl запроса
+	data := map[string]interface{}{
+		"template_id":      246282,
+		"template_hash_id": "5ba61f6f48c1ffe49ca7163d4e3a6460",
+		"client_id":        "me",
+		"image":            "vastai/linux-desktop:@vastai-automatic-tag",
+		"env": map[string]string{
+			"-p 1111:1111":      "1",
+			"-p 6100:6100":      "1", 
+			"-p 73478:73478":    "1",
+			"-p 8384:8384":      "1",
+			"-p 72299:72299":    "1",
+			"-p 6200:6200":      "1",
+			"-p 5900:5900":      "1",
+			"OPEN_BUTTON_TOKEN": "1",
+			"JUPYTER_DIR":       "/",
+			"DATA_DIRECTORY":    "/workspace/",
+			"PORTAL_CONFIG":     portalConfig,
+			"OPEN_BUTTON_PORT":  "1111",
+			"SELKIES_ENCODER":   "x264enc",
+		},
+		"args_str":              "",
+		"onstart":               "entrypoint.sh",
+		"runtype":               "jupyter_direc ssh_direc ssh_proxy",
+		"image_login":           nil,
+		"use_jupyter_lab":       false,
+		"jupyter_dir":           nil,
+		"python_utf8":           nil,
+		"lang_utf8":             nil,
+		"disk":                  32,
+		"last_known_min_bid":    0.06666666666666667,
+		"min_duration":          259200,
+	}
+	
+	respBody, err := v.makeRequest("PUT", endpoint, data)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create instance via CLI: %v\nOutput: %s", err, string(output))
+		return nil, fmt.Errorf("failed to create instance via API: %v", err)
+	}
+	
+	var result map[string]interface{}
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return nil, fmt.Errorf("failed to parse API response: %v", err)
+	}
+	
+	contractID, ok := result["new_contract"].(float64)
+	if !ok {
+		return nil, fmt.Errorf("failed to get contract ID from API response: %v", result)
 	}
 
-	outputStr := string(output)
-	fmt.Printf("Instance creation output: %s\n", outputStr)
-
-	var contractID int
-	if _, err := fmt.Sscanf(outputStr, "Started. {'success': True, 'new_contract': %d}", &contractID); err != nil {
-		if _, err2 := fmt.Sscanf(outputStr, "Started. {'success': False, 'new_contract': %d}", &contractID); err2 != nil {
-			return nil, fmt.Errorf("failed to parse contract ID from output: %s", outputStr)
-		}
-	}
-
-	fmt.Printf("Instance created with ID: %d\n", contractID)
-	return &Instance{ID: contractID}, nil
+	fmt.Printf("Instance created with ID: %d\n", int(contractID))
+	return &Instance{ID: int(contractID)}, nil
 }
 
 func (v *VastClient) SetSSHKey(publicKey string) error {
