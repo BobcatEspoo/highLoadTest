@@ -8,7 +8,7 @@ import (
 
 func main() {
 	// chromePath := `C:\Program Files\Google\Chrome\Application\chrome.exe`
-	chromeLinuxPath := "/usr/local/bin/google-chrome"
+	chromeLinuxPath := "/usr/bin/google-chrome-stable"
 	url := "https://x.la/cgs/1754888695/play"
 	args := []string{
 		"--password-store=basic",
