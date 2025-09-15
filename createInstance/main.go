@@ -149,7 +149,7 @@ func (v *VastClient) SearchOffers() ([]Offer, error) {
 var sshKeySetOnce sync.Once
 var globalSSHKeyError error
 
-func (v *VastClient) CreateInstance(offerID int) (*Instance, error) {
+func (v *VastClient) CreateInstance(offer Offer) (*Instance, error) {
 	// Устанавливаем SSH ключ только один раз глобально
 	sshKeySetOnce.Do(func() {
 		sshKey, err := getOrCreateSSHKey()
@@ -179,7 +179,7 @@ func (v *VastClient) CreateInstance(offerID int) (*Instance, error) {
 	// Создаем через API с правильной структурой как в UI
 	portalConfig := "localhost:1111:11111:/:Instance Portal|localhost:6100:16100:/:Selkies Low Latency Desktop|localhost:6200:16200:/guacamole:Apache Guacamole Desktop (VNC)|localhost:8080:8080:/:Jupyter|localhost:8080:8080:/terminals/1:Jupyter Terminal|localhost:8384:18384:/:Syncthing"
 	
-	endpoint := "/asks/" + fmt.Sprintf("%d", offerID) + "/"
+	endpoint := "/asks/" + fmt.Sprintf("%d", offer.ID) + "/"
 	
 	// Используем точную структуру из curl запроса
 	data := map[string]interface{}{
@@ -189,7 +189,7 @@ func (v *VastClient) CreateInstance(offerID int) (*Instance, error) {
 		"image":            "vastai/linux-desktop:@vastai-automatic-tag",
 		"env": map[string]string{
 			"-p 1111:1111":      "1",
-			"-p 6100:6100":      "1", 
+			"-p 6100:6100":      "1",
 			"-p 73478:73478":    "1",
 			"-p 8384:8384":      "1",
 			"-p 72299:72299":    "1",
@@ -211,7 +211,7 @@ func (v *VastClient) CreateInstance(offerID int) (*Instance, error) {
 		"python_utf8":           nil,
 		"lang_utf8":             nil,
 		"disk":                  32,
-		"last_known_min_bid":    0.06666666666666667,
+		"last_known_min_bid":    offer.MinBid,
 		"min_duration":          259200,
 	}
 	
@@ -559,14 +559,14 @@ func main() {
 			fmt.Printf("  Disk: %.1f GB\n", offer.DiskSpace)
 			fmt.Printf("  Price: $%.4f/hour\n", offer.DPHTotal)
 			fmt.Printf("  Offer ID: %d\n", offer.ID)
-			fmt.Printf("  Location: %s\n\n", offer.GeoCoordsString)
+			fmt.Printf("  Min Bid: $%.4f/hour\n\n", offer.MinBid)
 
 			fmt.Printf("[Instance %d] [%s] Creating instance...\n", offerIndex+1, time.Now().Format("15:04:05"))
 
 			// Добавляем задержку между запросами для rate limiting (max 4.5 req/sec)
 			time.Sleep(time.Duration(offerIndex) * 500 * time.Millisecond)
 
-			instance, err := client.CreateInstance(offer.ID)
+			instance, err := client.CreateInstance(offer)
 			if err != nil {
 				fmt.Printf("[Instance %d] [%s] Failed to create instance: %v\n", offerIndex+1, time.Now().Format("15:04:05"), err)
 				return
