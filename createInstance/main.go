@@ -109,8 +109,9 @@ func (v *VastClient) makeRequest(method, endpoint string, body interface{}) ([]b
 
 func (v *VastClient) SearchOffers() ([]Offer, error) {
 	searchQuery := map[string]interface{}{
-		"rentable":   map[string]bool{"eq": true},
-		"disk_space": map[string]float64{"gte": 30.0},
+		"rentable":             map[string]bool{"eq": true},
+		"disk_space":           map[string]float64{"gte": 30.0},
+		"gpu_display_active":   map[string]bool{"eq": true},
 	}
 
 	queryJSON, _ := json.Marshal(searchQuery)
@@ -171,7 +172,6 @@ func (v *VastClient) CreateInstance(offerID int) (*Instance, error) {
 		"--ssh",
 		"--jupyter",
 		"--direct",
-		"--onstart", "entrypoint.sh",
 		"--args", "-p 1111:1111 -p 6100:6100 -p 73478:73478 -p 8384:8384 -p 72299:72299 -p 6200:6200 -p 5900:5900 -e OPEN_BUTTON_TOKEN=1 -e JUPYTER_DIR=/ -e DATA_DIRECTORY=/workspace/ -e PORTAL_CONFIG=\"localhost:1111:11111:/:Instance Portal|localhost:6100:16100:/:Selkies Low Latency Desktop|localhost:6200:16200:/guacamole:Apache Guacamole Desktop (VNC)|localhost:8080:8080:/:Jupyter|localhost:8080:8080:/terminals/1:Jupyter Terminal|localhost:8384:18384:/:Syncthing\" -e OPEN_BUTTON_PORT=1111 -e SELKIES_ENCODER=x264enc")
 
 	output, err := cmd.CombinedOutput()
