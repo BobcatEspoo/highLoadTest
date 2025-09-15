@@ -162,11 +162,23 @@ func (v *VastClient) CreateInstance(offerID int) (*Instance, error) {
 	}
 
 	fmt.Println("Creating instance via CLI...")
-	envParams := "-p 1111:1111 -p 6100:6100 -p 73478:73478 -p 8384:8384 -p 72299:72299 -p 6200:6200 -p 5900:5900 -e OPEN_BUTTON_TOKEN=1 -e JUPYTER_DIR=/ -e DATA_DIRECTORY=/workspace/ -e PORTAL_CONFIG=localhost:1111:11111:/:Instance Portal|localhost:6100:16100:/:Selkies Low Latency Desktop|localhost:6200:16200:/guacamole:Apache Guacamole Desktop (VNC)|localhost:8080:8080:/:Jupyter|localhost:8080:8080:/terminals/1:Jupyter Terminal|localhost:8384:18384:/:Syncthing -e OPEN_BUTTON_PORT=1111 -e SELKIES_ENCODER=x264enc"
+	portalConfig := "localhost:1111:11111:/:Instance Portal|localhost:6100:16100:/:Selkies Low Latency Desktop|localhost:6200:16200:/guacamole:Apache Guacamole Desktop (VNC)|localhost:8080:8080:/:Jupyter|localhost:8080:8080:/terminals/1:Jupyter Terminal|localhost:8384:18384:/:Syncthing"
 	
 	cmd := exec.Command("vastai", "create", "instance", fmt.Sprintf("%d", offerID),
 		"--image", "vastai/linux-desktop:@vastai-automatic-tag",
-		"--env", envParams,
+		"-p", "1111:1111",
+		"-p", "6100:6100", 
+		"-p", "73478:73478",
+		"-p", "8384:8384",
+		"-p", "72299:72299",
+		"-p", "6200:6200",
+		"-p", "5900:5900",
+		"-e", "OPEN_BUTTON_TOKEN=1",
+		"-e", "JUPYTER_DIR=/",
+		"-e", "DATA_DIRECTORY=/workspace/",
+		"-e", "PORTAL_CONFIG="+portalConfig,
+		"-e", "OPEN_BUTTON_PORT=1111",
+		"-e", "SELKIES_ENCODER=x264enc",
 		"--onstart-cmd", "env | grep _ >> /etc/environment; echo \"$PORTAL_CONFIG\" | tr '|' '\\n' > /etc/portal.yaml; echo 'Portal config written to /etc/portal.yaml'; echo 'Desktop environment starting...'",
 		"--disk", "32",
 		"--jupyter",
