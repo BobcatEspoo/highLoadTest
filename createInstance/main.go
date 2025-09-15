@@ -86,8 +86,21 @@ func (v *VastClient) makeRequest(method, endpoint string, body interface{}) ([]b
 		return nil, err
 	}
 
+	// Используем те же заголовки что и UI
 	req.Header.Set("Authorization", "Bearer "+v.apiKey)
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json, text/plain, */*")
+	req.Header.Set("Accept-Language", "en-GB,en;q=0.9,ru-RU;q=0.8,ru;q=0.7,en-US;q=0.6")
+	req.Header.Set("Cache-Control", "no-cache")
+	req.Header.Set("Origin", "https://cloud.vast.ai")
+	req.Header.Set("Pragma", "no-cache")
+	req.Header.Set("Sec-Ch-Ua", `"Chromium";v="140", "Not=A?Brand";v="24", "Google Chrome";v="140"`)
+	req.Header.Set("Sec-Ch-Ua-Mobile", "?0")
+	req.Header.Set("Sec-Ch-Ua-Platform", `"macOS"`)
+	req.Header.Set("Sec-Fetch-Dest", "empty")
+	req.Header.Set("Sec-Fetch-Mode", "cors")
+	req.Header.Set("Sec-Fetch-Site", "same-origin")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36")
 
 	resp, err := v.client.Do(req)
 	if err != nil {
