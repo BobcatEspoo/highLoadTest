@@ -267,10 +267,28 @@ func (v *VastClient) GetInstance(instanceID int) (*Instance, error) {
 		Status: fields[2],
 	}
 
-	if fields[2] == "running" && len(fields) >= 11 {
-		instance.SSHHost = fields[9]
-		port, _ := strconv.Atoi(fields[10])
-		instance.SSHPort = port
+	// Если инстанс готов, получаем правильные SSH данные через ssh-url
+	if fields[2] == "running" {
+		sshCmd := exec.Command("vastai", "ssh-url", fmt.Sprintf("%d", instanceID))
+		sshOutput, err := sshCmd.CombinedOutput()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get SSH URL: %v\nOutput: %s", err, string(sshOutput))
+		}
+		
+		// Парсим ssh://root@host:port
+		sshURL := strings.TrimSpace(string(sshOutput))
+		if strings.HasPrefix(sshURL, "ssh://root@") {
+			hostPort := strings.TrimPrefix(sshURL, "ssh://root@")
+			parts := strings.Split(hostPort, ":")
+			if len(parts) == 2 {
+				instance.SSHHost = parts[0]
+				port, err := strconv.Atoi(parts[1])
+				if err != nil {
+					return nil, fmt.Errorf("invalid SSH port: %s", parts[1])
+				}
+				instance.SSHPort = port
+			}
+		}
 	}
 
 	return instance, nil
