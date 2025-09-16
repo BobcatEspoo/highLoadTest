@@ -1,4 +1,7 @@
-.PHONY: build build-linux clean
+.PHONY: build build-linux clean deps
+
+deps:
+	go mod tidy
 
 build:
 	go build -o highLoadTest main.go
